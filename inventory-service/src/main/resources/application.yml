@@ -1,0 +1,21 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: inventory-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: inventory-service
+
+recoveryguard:
+  topics:
+    payments: payments
+    inventory: inventory
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,18 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: order-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+recoveryguard:
+  topics:
+    orders: orders
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

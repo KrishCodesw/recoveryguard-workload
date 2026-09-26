@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.recoveryguard</groupId>
+    <artifactId>recoveryguard-workload</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>RecoveryGuard Reference Workload</name>
+    <description>
+        Kafka-backed reference e-commerce workload used as the system under test
+        for RecoveryGuard. Order -> Payment -> Inventory is the MVP causal chain;
+        Warehouse, Logistics and Notification are stubbed for Phase 2.
+    </description>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <modules>
+        <module>common-events</module>
+        <module>order-service</module>
+        <module>payment-service</module>
+        <module>inventory-service</module>
+        <module>warehouse-service</module>
+        <module>logistics-service</module>
+        <module>notification-service</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <spring-kafka.version>3.2.4</spring-kafka.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.recoveryguard</groupId>
+                <artifactId>common-events</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+</project>
