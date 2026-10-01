@@ -1,12 +1,30 @@
+# Build output
 target/
 *.class
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
+.flattened-pom.xml
+dependency-reduced-pom.xml
 
+# IDE / OS
 .idea/
 *.iml
 .vscode/
 .DS_Store
 
+# Logs
 *.log
 HELP.md
+
+# Experiment artifacts: run manifests, acknowledgement ledgers, expected-state records.
+# Deliberately ignored -- these are per-run evidence, not source. A curated example run may be
+# committed explicitly under docs/examples/ with `git add -f`.
+runs/
+*.jsonl
+
+# Local environment / secrets. Cluster credentials must be externalized and never stored in
+# experiment artifacts (PRD section 15, Security).
+*.env
+.env
+.env.*
+!.env.example

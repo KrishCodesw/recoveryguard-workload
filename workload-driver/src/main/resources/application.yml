@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: workload-driver
+  main:
+    # The driver is a batch CLI: no web server, no Kafka.
+    web-application-type: none
+    banner-mode: off
+
+workload:
+  orders: ${WORKLOAD_ORDERS:100}
+  rate: ${WORKLOAD_RATE:0}
+  seed: ${WORKLOAD_SEED:20260926}
+  experiment-id: ${RECOVERYGUARD_EXPERIMENT_ID:unscoped}
+  output-dir: ${RECOVERYGUARD_LEDGER_PATH:./runs}
+  order-service-url: ${ORDER_SERVICE_URL:http://localhost:8081}
+  request-timeout-ms: 180000
+  fail-on-rejection: ${WORKLOAD_FAIL_ON_REJECTION:true}
+  concurrency: 1
+
+logging:
+  level:
+    root: INFO
+    com.recoveryguard.driver: INFO

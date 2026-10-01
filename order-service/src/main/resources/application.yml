@@ -6,13 +6,31 @@ spring:
     name: order-service
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 recoveryguard:
   topics:
-    orders: orders
+    orders: ${RECOVERYGUARD_TOPIC_ORDERS:orders}
+  experiment-id: ${RECOVERYGUARD_EXPERIMENT_ID:}
+  ledger:
+    path: ${RECOVERYGUARD_LEDGER_PATH:./runs}
+    fsync: ${RECOVERYGUARD_LEDGER_FSYNC:true}
+  cluster:
+    profile: ${RECOVERYGUARD_CLUSTER_PROFILE:dev}
+    guard-timeout-ms: 10000
+  producer:
+    ack-timeout-ms: 130000
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      experiment-id: ${recoveryguard.experiment-id:unscoped}
