@@ -7,15 +7,36 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: inventory-service
+      group-id: ${RECOVERYGUARD_GROUP_INVENTORY:inventory-service}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 recoveryguard:
   topics:
-    payments: payments
-    inventory: inventory
+    payments: ${RECOVERYGUARD_TOPIC_PAYMENTS:payments}
+    inventory: ${RECOVERYGUARD_TOPIC_INVENTORY:inventory}
+  experiment-id: ${RECOVERYGUARD_EXPERIMENT_ID:}
+  ledger:
+    path: ${RECOVERYGUARD_LEDGER_PATH:./runs}
+    fsync: ${RECOVERYGUARD_LEDGER_FSYNC:true}
+  cluster:
+    profile: ${RECOVERYGUARD_CLUSTER_PROFILE:dev}
+    guard-timeout-ms: 10000
+  producer:
+    ack-timeout-ms: 130000
+  listener:
+    retry-interval-ms: 2000
+    max-attempts: 60
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      experiment-id: ${recoveryguard.experiment-id:unscoped}

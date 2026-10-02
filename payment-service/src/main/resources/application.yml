@@ -7,15 +7,47 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: payment-service
+      group-id: ${RECOVERYGUARD_GROUP_PAYMENT:payment-service}
+  lifecycle:
+    # Let in-flight produces finish before shutdown, so a restart during an experiment does not
+    # itself become an unattributed source of loss.
+    timeout-per-shutdown-phase: 30s
 
 recoveryguard:
   topics:
-    orders: orders
-    payments: payments
+    orders: ${RECOVERYGUARD_TOPIC_ORDERS:orders}
+    payments: ${RECOVERYGUARD_TOPIC_PAYMENTS:payments}
+  # Identifier for this experiment run; scopes everything the workload records (PRD FR-10).
+  experiment-id: ${RECOVERYGUARD_EXPERIMENT_ID:}
+  ledger:
+    path: ${RECOVERYGUARD_LEDGER_PATH:./runs}
+    # fsync per record. Slower, but a ledger that can lose its tail is worse than no ledger: it turns
+    # "never recorded" into "recorded then vanished", indistinguishable from real event loss.
+    fsync: ${RECOVERYGUARD_LEDGER_FSYNC:true}
+  cluster:
+    # dev        -> single-broker compose; contract violations warn only
+    # experiment -> real cluster; violations abort startup
+    profile: ${RECOVERYGUARD_CLUSTER_PROFILE:dev}
+    guard-timeout-ms: 10000
+  producer:
+    # Above KafkaContract.DELIVERY_TIMEOUT_MS so the client's own, more specific timeout fires first.
+    ack-timeout-ms: 130000
+  listener:
+    # Retry window sized to ride out an injected outage (~120s) rather than dead-letter records while
+    # the cluster is still recovering.
+    retry-interval-ms: 2000
+    max-attempts: 60
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # prometheus feeds the PRD section 18 measurement plan (detection / evidence / validation latency).
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      experiment-id: ${recoveryguard.experiment-id:unscoped}

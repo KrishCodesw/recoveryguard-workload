@@ -1,0 +1,128 @@
+# Three-broker KRaft cluster for real failure/recovery experiments.
+#
+# This is the minimum topology in which RecoveryGuard's thesis is testable at all. The settings below
+# are not tuning preferences -- each one is load-bearing for the acknowledged-event contract:
+#
+#   KAFKA_MIN_INSYNC_REPLICAS: 2
+#       acks=all means "every replica in the ISR". If the ISR shrinks to the leader alone, "all"
+#       means one, and a record can be acknowledged to the application and then lost on failover.
+#       min.insync.replicas=2 turns that into a rejected produce (NOT_ENOUGH_REPLICAS) instead of a
+#       silent downgrade to acks=1.
+#
+#   KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+#       With this true, an out-of-sync replica may become leader and acknowledged records simply
+#       disappear. That is PRD section 10.2 -- but it must be a deliberate injection, never an
+#       accident of cluster configuration.
+#
+#   KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+#       Auto-created topics get one partition and RF 1, which silently voids the contract. Topics are
+#       declared explicitly by the services instead.
+#
+#   KAFKA_REPLICA_LAG_TIME_MAX_MS: 10000
+#       Shortened from the 30s default so a stale-replica condition is reachable inside the duration
+#       of a normal experiment run.
+#
+# Inject a broker failure with:
+#   docker compose -f docker-compose.experiment.yml stop kafka-2
+# and observe automated recovery, then validate the recovered state against
+# ./runs/<experiment-id>/expected-state.jsonl.
+
+x-kafka-common: &kafka-common
+  image: apache/kafka:3.7.1
+  restart: unless-stopped
+  environment: &kafka-env
+    KAFKA_PROCESS_ROLES: broker,controller
+    CLUSTER_ID: fT8qHltMTW6PkKGyw9Tl9g
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+    KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+    # Durability floors. See the header comment -- these are the contract, not preferences.
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    KAFKA_REPLICA_LAG_TIME_MAX_MS: 10000
+  healthcheck:
+    test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+    interval: 10s
+    timeout: 10s
+    retries: 15
+    start_period: 30s
+
+x-service-common: &service-common
+  restart: unless-stopped
+  environment: &service-env
+    KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+    # experiment profile: the cluster-contract guard aborts startup on any violation, so a
+    # misconfigured cluster can never silently produce an uninterpretable verdict.
+    RECOVERYGUARD_CLUSTER_PROFILE: experiment
+    RECOVERYGUARD_LEDGER_PATH: /app/runs
+    RECOVERYGUARD_EXPERIMENT_ID: ${RECOVERYGUARD_EXPERIMENT_ID:-exp-local}
+  volumes:
+    - ./runs:/app/runs
+  depends_on:
+    kafka-1:
+      condition: service_healthy
+    kafka-2:
+      condition: service_healthy
+    kafka-3:
+      condition: service_healthy
+
+services:
+  kafka-1:
+    <<: *kafka-common
+    container_name: recoveryguard-kafka-1
+    ports: ["29092:29092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-1:9092,EXTERNAL://localhost:29092
+
+  kafka-2:
+    <<: *kafka-common
+    container_name: recoveryguard-kafka-2
+    ports: ["29093:29092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-2:9092,EXTERNAL://localhost:29093
+
+  kafka-3:
+    <<: *kafka-common
+    container_name: recoveryguard-kafka-3
+    ports: ["29094:29092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-3:9092,EXTERNAL://localhost:29094
+
+  order-service:
+    <<: *service-common
+    build: { context: ., dockerfile: order-service/Dockerfile }
+    ports: ["8081:8081"]
+
+  payment-service:
+    <<: *service-common
+    build: { context: ., dockerfile: payment-service/Dockerfile }
+    ports: ["8082:8082"]
+
+  inventory-service:
+    <<: *service-common
+    build: { context: ., dockerfile: inventory-service/Dockerfile }
+    ports: ["8083:8083"]
+
+  workload-driver:
+    <<: *service-common
+    build: { context: ., dockerfile: workload-driver/Dockerfile }
+    environment:
+      <<: *service-env
+      ORDER_SERVICE_URL: http://order-service:8081
+      WORKLOAD_ORDERS: ${WORKLOAD_ORDERS:-1000}
+      WORKLOAD_SEED: ${WORKLOAD_SEED:-20260926}
+      WORKLOAD_RATE: ${WORKLOAD_RATE:-0}
+    profiles: [driver]
