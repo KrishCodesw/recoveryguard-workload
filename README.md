@@ -123,6 +123,23 @@ cannot quietly change it.
 Note for non-JVM consumers: records carry a `__TypeId__` header containing the Java FQCN
 (`com.recoveryguard.events.OrderCreatedEvent`). Ignore it; the body is self-describing.
 
+## Acknowledgement evidence
+
+Each Phase 1 producer waits for the Kafka `SendResult` before its listener returns. The
+returned `topic`, `partition`, and `offset` are appended to a JSONL acknowledgement
+ledger together with `eventId`, `orderId`, `eventType`, producer service, experiment ID,
+and acknowledgement timestamp. This ledger is evidence of the broker ACK and is not
+inferred from application logs.
+
+Docker Compose persists separate ledgers under `.recoveryguard-data/`:
+
+- `order-service-acknowledged-events.jsonl`
+- `payment-service-acknowledged-events.jsonl`
+- `inventory-service-acknowledged-events.jsonl`
+
+Set `RECOVERYGUARD_EXPERIMENT_ID` to correlate records with a particular experiment.
+Set `RECOVERYGUARD_ACK_LEDGER_PATH` when running a service outside Compose.
+
 ## Running locally
 
 ```bash
